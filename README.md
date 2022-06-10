@@ -6,7 +6,7 @@
 
 
 ## status
-- for now it doesn't persist in the database but simply create a new file with the sparql query that would run in data/<timestamp>.sparql
+- for now it doesn't persist in the database but simply create a new file with the sparql query that would run in `data/<timestamp>.sparql`
 
 ## how to
 
