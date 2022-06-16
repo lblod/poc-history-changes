@@ -1,15 +1,20 @@
 import { app } from "mu";
 import { querySudo, updateSudo } from "@lblod/mu-auth-sudo";
 import bodyParser from "body-parser";
-import { getAccount, insertHistory } from "./queries";
+import {
+  getAccount,
+  accountDetail,
+  insertHistory,
+  getDeletes,
+  getUpdates,
+  getInserts,
+  getAllHistoryChange,
+} from "./queries";
 import Triple from "./triple";
-
-import fs from "fs";
 
 const SESSION_GRAPH_URI =
   process.env.SESSION_GRAPH || "http://mu.semte.ch/graphs/sessions";
-const AGGREGATION_INTERVAL =
-  process.env.AGGREGATION_INTERVAL || 5000;
+const AGGREGATION_INTERVAL = process.env.AGGREGATION_INTERVAL || 15_000;
 
 const STORE = new Map();
 
@@ -20,6 +25,16 @@ app.use(
     },
   })
 );
+
+app.get("/history-changes", async (req, res, next) => {
+  const changes = await getAllHistoryChanges();
+  return res.json(changes);
+});
+
+app.get("/history-changes/:id", async (req, res, next) => {
+  const details = await getHistoryDetail(req.params.id);
+  return res.json(details);
+});
 
 app.post("/delta", async (req, res, next) => {
   try {
@@ -79,32 +94,15 @@ function error(res, message, status = 400) {
 
 app.use(error);
 
-// ######## functions
-
-async function getAccountBySession(sessionId) {
-  checkNotEmpty(sessionId, "No session id!");
-  let getAccountQuery = getAccount(SESSION_GRAPH_URI, sessionId);
-  const queryResult = await querySudo(getAccountQuery);
-  if (queryResult.results.bindings.length) {
-    const result = queryResult.results.bindings[0];
-    return result.account?.value;
-  } else {
-    return null;
-  }
-}
-
-function checkNotEmpty(argument, message = "This cannont be empty!") {
-  if (!argument?.length) {
-    throw Error(message);
-  }
-}
-
-setInterval(() => {
+// #region aggregates
+setInterval(async () => {
   let now = new Date();
   const sink = [...STORE].filter(
     ([k, v]) => now.getTime() - v.date.getTime() >= AGGREGATION_INTERVAL
   );
+  
   for (const [k, change] of sink) {
+    STORE.delete(k);
     const inserts = change.deltas.map((d) => d.inserts).flat();
     const deletes = change.deltas.map((d) => d.deletes).flat();
 
@@ -133,8 +131,7 @@ setInterval(() => {
       };
     });
 
-    fs.writeFileSync(
-      `/data/${now.getTime()}.sparql`,
+    await updateSudo(
       insertHistory({
         date: change.date,
         account: change.account,
@@ -143,6 +140,111 @@ setInterval(() => {
         updates,
       })
     );
-    STORE.delete(k);
+
   }
 }, 1000);
+
+// #endregion
+
+// #region function
+
+async function getAccountBySession(sessionId) {
+  checkNotEmpty(sessionId, "No session id!");
+  let getAccountQuery = getAccount(SESSION_GRAPH_URI, sessionId);
+  const queryResult = await querySudo(getAccountQuery);
+  if (queryResult.results.bindings.length) {
+    const result = queryResult.results.bindings[0];
+    return result.account?.value;
+  } else {
+    return null;
+  }
+}
+
+function checkNotEmpty(argument, message = "This cannont be empty!") {
+  if (!argument?.length) {
+    throw Error(message);
+  }
+}
+export async function selectUserByAccount(accountUri) {
+  const queryResult = await querySudo(accountDetail(accountUri));
+
+  if (queryResult.results.bindings.length) {
+    const result = queryResult.results.bindings[0];
+    return {
+      accountUri: accountUri,
+      accountIdentifier: result.accountIdentifier?.value,
+      accountProvider: result.accountProvider.value,
+      userFirstname: result.userFirstname.value,
+      userFamilyName: result.userFamilyName.value,
+      userId: result.userId.value,
+      accountId: result.accountId.value,
+    };
+  } else {
+    return {
+      accountUri: null,
+      accountIdentifier: null,
+      accountProvider: null,
+      userFirstname: null,
+      userFamilyName: null,
+      userId: null,
+      accountId: null,
+    };
+  }
+}
+export async function getAllHistoryChanges() {
+  const queryResult = await querySudo(getAllHistoryChange());
+
+  const results = [];
+  for (const result of queryResult.results.bindings) {
+    const accountUri = result.accountUri.value;
+    const account = await selectUserByAccount(accountUri);
+    results.push({
+      uri: result.uri.value,
+      id: result.id.value,
+      dateCreation: result.dateCreation.value,
+      ...account
+    });
+  }
+ 
+  return results;
+}
+
+export async function getHistoryDetail(historyId) {
+  const getInsertsResult = await querySudo(getInserts(historyId));
+  const getDeletesResult = await querySudo(getDeletes(historyId));
+  const getUpdatesResult = await querySudo(getUpdates(historyId));
+
+  const inserts = getInsertsResult.results.bindings.map(res => {
+    return {
+      subject: res.subject.value,
+      predicate: res.predicate.value,
+      obj: res.object.value,
+      type: "INSERT",
+    }
+  });
+  const deletes = getDeletesResult.results.bindings.map(res => {
+    return {
+      subject: res.subject.value,
+      predicate: res.predicate.value,
+      obj: res.object.value,
+      type: "DELETE",
+    }
+  });
+  const updates = getUpdatesResult.results.bindings.map(res => {
+    return {
+      subject: res.subject.value,
+      predicate: res.predicate.value,
+      oldObject: res.oldObject.value,
+      newObject: res.newObject.value,
+      type: "UPDATE",
+    }
+  });
+
+  return [
+    ...updates,...inserts, ...deletes
+  ]
+
+
+}
+
+// #endregion
