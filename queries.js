@@ -12,22 +12,45 @@ PREFIX session: <http://mu.semte.ch/vocabularies/session/>
 PREFIX dct: <https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#>
 `;
 
-// todo paginate it but for demo purpose it should be ok
-export function getAllHistoryChange() {
-  return `
+export function getAllHistoryChange(pageSize, pageNumber) {
+  const query = `
 ${PREFIXES}
 select ?uri ?id ?dateCreation ?accountUri where {
 
-  GRAPH <${HISTORY_CHANGE_GRAPH}> {
-    ?uri a ext:HistoryChange;
-        mu:uuid ?id;
-        dct:created ?dateCreation;
-        session:account ?accountUri.
-  } 
+  select distinct ?uri ?id ?dateCreation ?accountUri where {
+    GRAPH <${HISTORY_CHANGE_GRAPH}> {
+      ?uri a ext:HistoryChange;
+          mu:uuid ?id;
+          dct:created ?dateCreation;
+          session:account ?accountUri.
+    } 
+  } order by desc(?dateCreation) ?uri ?id ?accountUri 
+ 
 
-}order by desc(?dateCreation)
+} limit ${pageSize} offset ${pageNumber*pageSize}
 
 `;
+console.log(query);
+return query;
+}
+export function getAllHistoryChangeCount() {
+  const query = `
+${PREFIXES}
+
+  select distinct (count(?id) as ?count) where {
+    GRAPH <${HISTORY_CHANGE_GRAPH}> {
+      ?uri a ext:HistoryChange;
+          mu:uuid ?id;
+          dct:created ?dateCreation;
+          session:account ?accountUri.
+    } 
+  } 
+ 
+
+
+`;
+console.log(query);
+return query;
 }
 
 export function getInserts(historyId) {

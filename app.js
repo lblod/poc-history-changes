@@ -6,6 +6,7 @@ import {
   accountDetail,
   insertHistory,
   getDeletes,
+  getAllHistoryChangeCount,
   getUpdates,
   getInserts,
   getAllHistoryChange,
@@ -14,7 +15,7 @@ import Triple from "./triple";
 
 const SESSION_GRAPH_URI =
   process.env.SESSION_GRAPH || "http://mu.semte.ch/graphs/sessions";
-const AGGREGATION_INTERVAL = process.env.AGGREGATION_INTERVAL || 15_000;
+const AGGREGATION_INTERVAL = process.env.AGGREGATION_INTERVAL || 5_000;
 
 const STORE = new Map();
 
@@ -27,18 +28,24 @@ app.use(
 );
 
 app.get("/history-changes", async (req, res, next) => {
-  const changes = await getAllHistoryChanges();
+  const pageSize = req.query.pageSize || 10;
+  const pageNumber = req.query.pageNumber || 0;
+  const changes = await getAllHistoryChanges({pageSize, pageNumber});
   return res.json(changes);
 });
 
 app.get("/history-changes/:id", async (req, res, next) => {
   const details = await getHistoryDetail(req.params.id);
-  return res.json(details);
+  return res.json(details); 
 });
 
 app.post("/delta", async (req, res, next) => {
   try {
     const sessionId = req.get("mu-session-id");
+    const muCallId = req.get("mu-call-id");
+    const muCallIdTrail = req.get("mu-call-id-trail");
+
+    console.log(`muCallId => ${muCallId}, muCallIdTrail => ${muCallIdTrail}`);
     const account = await getAccountBySession(sessionId);
     checkNotEmpty(account, "No account found!");
 
@@ -191,8 +198,10 @@ export async function selectUserByAccount(accountUri) {
     };
   }
 }
-export async function getAllHistoryChanges() {
-  const queryResult = await querySudo(getAllHistoryChange());
+export async function getAllHistoryChanges({pageSize=10, pageNumber =0}) {
+  const countResult = await querySudo(getAllHistoryChangeCount());
+
+  const queryResult = await querySudo(getAllHistoryChange(pageSize, pageNumber));
 
   const results = [];
   for (const result of queryResult.results.bindings) {
@@ -206,7 +215,10 @@ export async function getAllHistoryChanges() {
     });
   }
  
-  return results;
+  return {
+    count: countResult.results.bindings[0].count.value,
+    content: results
+  };
 }
 
 export async function getHistoryDetail(historyId) {
