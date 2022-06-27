@@ -30,7 +30,9 @@ app.use(
 app.get("/history-changes", async (req, res, next) => {
   const pageSize = req.query.pageSize || 10;
   const pageNumber = req.query.pageNumber || 0;
-  const changes = await getAllHistoryChanges({pageSize, pageNumber});
+  const fromDate = req.query.fromDate || null;
+  const toDate = req.query.toDate || null;
+  const changes = await getAllHistoryChanges({pageSize, pageNumber, fromDate, toDate});
   return res.json(changes);
 });
 
@@ -198,10 +200,10 @@ export async function selectUserByAccount(accountUri) {
     };
   }
 }
-export async function getAllHistoryChanges({pageSize=10, pageNumber =0}) {
-  const countResult = await querySudo(getAllHistoryChangeCount());
+export async function getAllHistoryChanges({pageSize=10, pageNumber =0, fromDate = null, toDate = null}) {
+  const countResult = await querySudo(getAllHistoryChangeCount(fromDate, toDate));
 
-  const queryResult = await querySudo(getAllHistoryChange(pageSize, pageNumber));
+  const queryResult = await querySudo(getAllHistoryChange(pageSize, pageNumber, fromDate, toDate));
 
   const results = [];
   for (const result of queryResult.results.bindings) {

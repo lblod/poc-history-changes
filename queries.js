@@ -1,4 +1,4 @@
-import { sparqlEscapeUri,sparqlEscapeString, uuid } from "mu";
+import { sparqlEscapeUri,sparqlEscapeString,sparqlEscapeDate, uuid } from "mu";
 
 const HISTORY_CHANGE_GRAPH =
   process.env.HISTORY_CHANGE_GRAPH ||
@@ -12,7 +12,11 @@ PREFIX session: <http://mu.semte.ch/vocabularies/session/>
 PREFIX dct: <https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#>
 `;
 
-export function getAllHistoryChange(pageSize, pageNumber) {
+export function getAllHistoryChange(pageSize, pageNumber, fromDate, toDate) {
+  let filterByDate = '';
+  if(fromDate?.length && toDate?.length) {
+    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDate(fromDate)} && ?dateCreation <=  ${sparqlEscapeDate(toDate)}) `
+  } 
   const query = `
 ${PREFIXES}
 select ?uri ?id ?dateCreation ?accountUri where {
@@ -23,6 +27,7 @@ select ?uri ?id ?dateCreation ?accountUri where {
           mu:uuid ?id;
           dct:created ?dateCreation;
           session:account ?accountUri.
+          ${filterByDate}
     } 
   } order by desc(?dateCreation) ?uri ?id ?accountUri 
  
@@ -33,7 +38,12 @@ select ?uri ?id ?dateCreation ?accountUri where {
 console.log(query);
 return query;
 }
-export function getAllHistoryChangeCount() {
+export function getAllHistoryChangeCount(fromDate, toDate) {
+  let filterByDate = '';
+  if(fromDate && toDate && fromDate?.length && toDate?.length) {
+
+    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDate(fromDate)} && ?dateCreation <=  ${sparqlEscapeDate(toDate)}) `
+  } 
   const query = `
 ${PREFIXES}
 
@@ -43,13 +53,17 @@ ${PREFIXES}
           mu:uuid ?id;
           dct:created ?dateCreation;
           session:account ?accountUri.
+          ${filterByDate}
     } 
   } 
  
 
 
 `;
+
 console.log(query);
+
+
 return query;
 }
 
