@@ -1,4 +1,4 @@
-import { sparqlEscapeUri,sparqlEscapeString,sparqlEscapeDate, uuid } from "mu";
+import { sparqlEscapeUri,sparqlEscapeString,sparqlEscapeDateTime, uuid } from "mu";
 
 const HISTORY_CHANGE_GRAPH =
   process.env.HISTORY_CHANGE_GRAPH ||
@@ -15,7 +15,7 @@ PREFIX dct: <https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#>
 export function getAllHistoryChange(pageSize, pageNumber, fromDate, toDate) {
   let filterByDate = '';
   if(fromDate?.length && toDate?.length) {
-    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDate(fromDate)} && ?dateCreation <=  ${sparqlEscapeDate(toDate)}) `
+    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDateTime(fromDate)} && ?dateCreation <=  ${sparqlEscapeDateTime(toDate)}) `
   } 
   const query = `
 ${PREFIXES}
@@ -42,7 +42,7 @@ export function getAllHistoryChangeCount(fromDate, toDate) {
   let filterByDate = '';
   if(fromDate && toDate && fromDate?.length && toDate?.length) {
 
-    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDate(fromDate)} && ?dateCreation <=  ${sparqlEscapeDate(toDate)}) `
+    filterByDate = `FILTER (?dateCreation >= ${sparqlEscapeDateTime(fromDate)} && ?dateCreation <=  ${sparqlEscapeDateTime(toDate)}) `
   } 
   const query = `
 ${PREFIXES}
